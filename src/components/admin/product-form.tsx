@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Save, ArrowLeft, ImagePlus } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
+import { ImageUpload } from "./image-upload";
 import { toast } from "sonner";
 
 interface Variant {
@@ -66,6 +67,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
   const [categoryId, setCategoryId] = useState(product?.categoryId || "");
   const [featured, setFeatured] = useState(product?.featured || false);
   const [active, setActive] = useState(product?.active ?? true);
+  const [images, setImages] = useState<string[]>(product?.images || []);
 
   const [variants, setVariants] = useState<Variant[]>(
     product?.variants.map((v) => ({
@@ -152,7 +154,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
         categoryId: categoryId || undefined,
         featured,
         active,
-        images: product?.images || [],
+        images,
         variants: variants.map((v) => ({
           id: v.id,
           name: v.name,
@@ -266,6 +268,20 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 />
               </div>
 
+            </CardContent>
+          </Card>
+
+          {/* Images */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Images</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ImageUpload
+                value={images}
+                onChange={setImages}
+                disabled={isSubmitting}
+              />
             </CardContent>
           </Card>
 
@@ -434,23 +450,6 @@ export function ProductForm({ product, categories }: ProductFormProps) {
             </CardContent>
           </Card>
 
-          {/* Images */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Images</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center">
-                <ImagePlus className="mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Image upload will be available after connecting uploadthing
-                </p>
-                <Button type="button" variant="outline" size="sm" className="mt-4" disabled>
-                  Upload Images
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </form>

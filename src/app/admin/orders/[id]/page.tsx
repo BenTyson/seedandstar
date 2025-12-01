@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ArrowLeft,
   Printer,
   Mail,
@@ -27,93 +20,22 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { formatCents } from "@/lib/shipping";
-
-type OrderStatus = "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED";
-
-// Placeholder order data
-const orders: Record<string, {
-  id: string;
-  orderNumber: string;
-  status: OrderStatus;
-  customer: {
-    name: string;
-    email: string;
-    phone?: string;
-  };
-  shippingAddress: {
-    name: string;
-    line1: string;
-    line2?: string;
-    city: string;
-    state: string;
-    zip: string;
-    country: string;
-  };
-  items: {
-    id: string;
-    productName: string;
-    variantName: string;
-    quantity: number;
-    price: number;
-  }[];
-  subtotal: number;
-  shipping: number;
-  tax: number;
-  discount: number;
-  total: number;
-  paymentMethod: string;
-  paymentStatus: string;
-  stripeSessionId?: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}> = {
-  "1": {
-    id: "1",
-    orderNumber: "SS-ABC123",
-    status: "CONFIRMED",
-    customer: {
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "(555) 123-4567",
-    },
-    shippingAddress: {
-      name: "John Doe",
-      line1: "123 Main Street",
-      line2: "Apt 4B",
-      city: "New York",
-      state: "NY",
-      zip: "10001",
-      country: "US",
-    },
-    items: [
-      { id: "1a", productName: "Ranch Dip Mix", variantName: "3-Pack", quantity: 1, price: 2399 },
-      { id: "2a", productName: "Spinach Artichoke Dip Mix", variantName: "Single Pack", quantity: 2, price: 999 },
-    ],
-    subtotal: 4397,
-    shipping: 0,
-    tax: 352,
-    discount: 0,
-    total: 4749,
-    paymentMethod: "card",
-    paymentStatus: "paid",
-    stripeSessionId: "cs_test_abc123",
-    createdAt: "2025-11-29T10:30:00Z",
-    updatedAt: "2025-11-29T10:30:00Z",
-  },
-};
+import { getOrder } from "@/lib/actions/orders";
+import { OrderStatus } from "@prisma/client";
+import { OrderStatusUpdate } from "./order-status-update";
 
 const statusConfig: Record<OrderStatus, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "Pending", color: "bg-yellow-500/20 text-yellow-600", icon: Clock },
-  CONFIRMED: { label: "Confirmed", color: "bg-blue-500/20 text-blue-600", icon: CheckCircle },
+  PAID: { label: "Paid", color: "bg-blue-500/20 text-blue-600", icon: CreditCard },
   PROCESSING: { label: "Processing", color: "bg-purple-500/20 text-purple-600", icon: Package },
   SHIPPED: { label: "Shipped", color: "bg-teal-500/20 text-teal-600", icon: Truck },
   DELIVERED: { label: "Delivered", color: "bg-green-500/20 text-green-600", icon: CheckCircle },
   CANCELLED: { label: "Cancelled", color: "bg-red-500/20 text-red-600", icon: XCircle },
+  REFUNDED: { label: "Refunded", color: "bg-gray-500/20 text-gray-600", icon: XCircle },
 };
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
+function formatDate(date: Date) {
+  return date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -134,7 +56,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   }
 
   const { id } = await params;
-  const order = orders[id];
+  const order = await getOrder(id);
 
   if (!order) {
     notFound();
@@ -142,6 +64,17 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
   const status = statusConfig[order.status];
   const StatusIcon = status.icon;
+
+  // Parse shipping address from JSON
+  const shippingAddress = order.shippingAddress as {
+    name?: string;
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  } | null;
 
   return (
     <div className="space-y-6">
@@ -198,9 +131,9 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                       <Package className="h-6 w-6 text-muted-foreground" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium">{item.productName}</p>
+                      <p className="font-medium">{item.variant.product.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {item.variantName} × {item.quantity}
+                        {item.variant.name} × {item.quantity}
                       </p>
                     </div>
                     <p className="font-medium">
@@ -219,7 +152,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                 </div>
                 {order.discount > 0 && (
                   <div className="flex justify-between text-retro-sage">
-                    <span>Discount</span>
+                    <span>Discount{order.discountCode ? ` (${order.discountCode.code})` : ""}</span>
                     <span>-{formatCents(order.discount)}</span>
                   </div>
                 )}
@@ -241,31 +174,31 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
               </div>
             </CardContent>
           </Card>
+
+          {/* Tracking Info */}
+          {order.trackingNumber && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Tracking Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-mono">{order.trackingNumber}</p>
+                {order.shippedAt && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Shipped on {formatDate(order.shippedAt)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Update Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Select defaultValue={order.status}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                  <SelectItem value="PROCESSING">Processing</SelectItem>
-                  <SelectItem value="SHIPPED">Shipped</SelectItem>
-                  <SelectItem value="DELIVERED">Delivered</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button className="w-full">Update Status</Button>
-            </CardContent>
-          </Card>
+          <OrderStatusUpdate orderId={order.id} currentStatus={order.status} />
 
           <Card>
             <CardHeader>
@@ -275,26 +208,47 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p className="font-medium">{order.customer.name}</p>
-              <p className="text-sm text-muted-foreground">{order.customer.email}</p>
-              {order.customer.phone && <p className="text-sm text-muted-foreground">{order.customer.phone}</p>}
+              {order.customer ? (
+                <>
+                  <p className="font-medium">
+                    {order.customer.firstName} {order.customer.lastName}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{order.customer.email}</p>
+                  {order.customer.phone && (
+                    <p className="text-sm text-muted-foreground">{order.customer.phone}</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Guest Checkout</p>
+                  <p className="text-sm text-muted-foreground">{order.email}</p>
+                </>
+              )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Shipping
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
-              <p>{order.shippingAddress.name}</p>
-              <p>{order.shippingAddress.line1}</p>
-              {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
-              <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}</p>
-            </CardContent>
-          </Card>
+          {shippingAddress && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Shipping
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm">
+                {shippingAddress.name && <p>{shippingAddress.name}</p>}
+                {shippingAddress.line1 && <p>{shippingAddress.line1}</p>}
+                {shippingAddress.line2 && <p>{shippingAddress.line2}</p>}
+                {(shippingAddress.city || shippingAddress.state || shippingAddress.postalCode) && (
+                  <p>
+                    {shippingAddress.city}{shippingAddress.city && shippingAddress.state ? ", " : ""}
+                    {shippingAddress.state} {shippingAddress.postalCode}
+                  </p>
+                )}
+                {shippingAddress.country && <p>{shippingAddress.country}</p>}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -306,8 +260,18 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Status</span>
-                <Badge variant="secondary" className="bg-retro-sage/20 text-retro-sage">{order.paymentStatus}</Badge>
+                <Badge variant="secondary" className="bg-retro-sage/20 text-retro-sage">
+                  {order.status === "PENDING" ? "Awaiting Payment" : "Paid"}
+                </Badge>
               </div>
+              {order.stripeSessionId && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stripe Session</span>
+                  <span className="font-mono text-xs truncate max-w-[120px]">
+                    {order.stripeSessionId.slice(-12)}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
