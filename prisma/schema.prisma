@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ PRODUCTS ============
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  images      String[] // Array of image URLs
+  featured    Boolean          @default(false)
+  active      Boolean          @default(true)
+  categoryId  String?
+  category    Category?        @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+  orderItems  OrderItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ProductVariant {
+  id         String      @id @default(cuid())
+  name       String // e.g., "Single Pack", "3-Pack", "Party Size"
+  sku        String      @unique
+  price      Int // Price in cents
+  compareAt  Int? // Compare at price for sales
+  weight     Int? // Weight in grams for shipping
+  inventory  Int         @default(0)
+  lowStock   Int         @default(5) // Alert threshold
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+// ============ ORDERS ============
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique // Human-readable: SS-10001
+  status          OrderStatus   @default(PENDING)
+  email           String
+  phone           String?
+  shippingAddress Json
+  billingAddress  Json?
+  subtotal        Int
+  shipping        Int           @default(0)
+  tax             Int           @default(0)
+  discount        Int           @default(0)
+  total           Int
+  stripePaymentId String?       @unique
+  discountCodeId  String?
+  discountCode    DiscountCode? @relation(fields: [discountCodeId], references: [id])
+  customerId      String?
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+  trackingNumber  String?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  notes           String? // Internal notes
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model OrderItem {
+  id          String         @id @default(cuid())
+  quantity    Int
+  price       Int // Price at time of purchase (cents)
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product        @relation(fields: [productId], references: [id])
+  variantId   String
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  productName String
+  variantName String
+}
+
+// ============ CUSTOMERS ============
+
+model Customer {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  firstName String?
+  lastName  String?
+  phone     String?
+  stripeId  String?   @unique
+  orders    Order[]
+  addresses Address[]
+  cart      Cart?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  name       String // "Home", "Work", etc.
+  firstName  String
+  lastName   String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String
+  country    String   @default("US")
+  isDefault  Boolean  @default(false)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ============ CART ============
+
+model Cart {
+  id         String     @id @default(cuid())
+  customerId String?    @unique
+  customer   Customer?  @relation(fields: [customerId], references: [id])
+  sessionId  String?    @unique // For guest carts
+  items      CartItem[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  quantity  Int
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([cartId, variantId])
+}
+
+// ============ DISCOUNTS ============
+
+model DiscountCode {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  type        DiscountType
+  value       Int // Percentage or cents depending on type
+  minPurchase Int? // Minimum order total in cents
+  maxUses     Int? // Total uses allowed
+  usedCount   Int          @default(0)
+  active      Boolean      @default(true)
+  startsAt    DateTime     @default(now())
+  expiresAt   DateTime?
+  orders      Order[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+// ============ ADMIN ============
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         Role     @default(ADMIN)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+}
