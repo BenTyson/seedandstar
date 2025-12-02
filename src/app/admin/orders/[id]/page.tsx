@@ -264,11 +264,11 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                   {order.status === "PENDING" ? "Awaiting Payment" : "Paid"}
                 </Badge>
               </div>
-              {order.stripeSessionId && (
+              {order.stripePaymentId && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Stripe Session</span>
+                  <span className="text-muted-foreground">Stripe Payment</span>
                   <span className="font-mono text-xs truncate max-w-[120px]">
-                    {order.stripeSessionId.slice(-12)}
+                    {order.stripePaymentId.slice(-12)}
                   </span>
                 </div>
               )}
