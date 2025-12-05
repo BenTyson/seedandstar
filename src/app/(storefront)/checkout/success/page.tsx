@@ -1,6 +1,5 @@
-"use client";
+export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,51 +13,53 @@ import {
   Clock,
   ShoppingBag,
 } from "lucide-react";
-import confetti from "canvas-confetti";
+import { stripe } from "@/lib/stripe";
+import { db } from "@/lib/db";
+import { ConfettiEffect } from "./confetti-effect";
 
-export default function CheckoutSuccessPage() {
-  const [orderNumber] = useState(() =>
-    `SS-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
-  );
+interface CheckoutSuccessPageProps {
+  searchParams: Promise<{ session_id?: string }>;
+}
 
-  useEffect(() => {
-    // Celebration confetti on page load
-    const duration = 2000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+export default async function CheckoutSuccessPage({
+  searchParams,
+}: CheckoutSuccessPageProps) {
+  const { session_id } = await searchParams;
 
-    function randomInRange(min: number, max: number) {
-      return Math.random() * (max - min) + min;
-    }
+  let orderNumber = "Processing...";
 
-    const interval = setInterval(() => {
-      const timeLeft = animationEnd - Date.now();
+  if (session_id) {
+    try {
+      // Try to get order from database first
+      const order = await db.order.findFirst({
+        where: { stripePaymentId: session_id },
+        select: { orderNumber: true },
+      });
 
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
+      if (order) {
+        orderNumber = order.orderNumber;
+      } else {
+        // Fallback: get payment intent from Stripe session
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+        if (session.payment_intent) {
+          const order = await db.order.findFirst({
+            where: { stripePaymentId: session.payment_intent as string },
+            select: { orderNumber: true },
+          });
+          if (order) {
+            orderNumber = order.orderNumber;
+          }
+        }
       }
-
-      const particleCount = 50 * (timeLeft / duration);
-
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-        colors: ["#a78bfa", "#1e3a5f", "#5eead4", "#9ca37c", "#fbbf24"],
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
-        colors: ["#a78bfa", "#1e3a5f", "#5eead4", "#9ca37c", "#fbbf24"],
-      });
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, []);
+    } catch (error) {
+      console.error("Error fetching order:", error);
+    }
+  }
 
   return (
     <div className="container mx-auto flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
+      <ConfettiEffect />
+
       {/* Success Icon */}
       <div className="relative mb-8">
         <div className="absolute -inset-4 animate-pulse rounded-full bg-retro-sage/20" />
