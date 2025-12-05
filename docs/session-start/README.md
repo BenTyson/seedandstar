@@ -15,7 +15,7 @@ Welcome! This guide helps you quickly understand the project and what to work on
 - **Payments**: Stripe (+ Apple Pay / Google Pay)
 - **Styling**: Tailwind CSS v4 + shadcn/ui
 - **Auth**: NextAuth.js v5 (Auth.js)
-- **Images**: uploadthing (not yet configured)
+- **Images**: uploadthing (configured)
 - **Hosting**: Railway
 
 ## Project Structure
@@ -81,29 +81,33 @@ DATABASE_URL="..." npm run db:generate
 DATABASE_URL="..." npm run db:seed
 ```
 
-## Current Status (Dec 1, 2024)
+## Current Status (Dec 4, 2024)
 
 **COMPLETED:**
 - ✅ Database connected (Railway PostgreSQL)
 - ✅ All storefront pages connected to real data
 - ✅ All admin pages connected to real data (including product edit)
-- ✅ Stripe webhook implemented for order creation
+- ✅ Stripe checkout with webhook for order creation
 - ✅ Theme: warm charcoal → purple gradient background
 - ✅ Homepage parallax hero with cosmic70s.jpg
 - ✅ Product placeholder gradients (retro colors)
 - ✅ Server actions: products CRUD, orders management
+- ✅ Uploadthing image uploads for products
+- ✅ Deployed to Railway (test mode)
+- ✅ Production Stripe webhook configured
+
+**PRODUCTION URL:** https://seedandstar-production.up.railway.app
 
 **NEXT SESSION TODO:**
-1. Set up Stripe test keys in `.env.local`:
-   - `STRIPE_SECRET_KEY` (sk_test_...)
-   - `STRIPE_PUBLISHABLE_KEY` (pk_test_...)
-   - `STRIPE_WEBHOOK_SECRET` (whsec_...)
-2. Test end-to-end checkout flow
-3. Deploy to Railway
-4. (Optional) Set up uploadthing for product images
+1. Add product images via admin
+2. Test full checkout flow on production
+3. Switch to live Stripe keys when ready for real payments
+4. (Optional) Customer account pages
+5. (Optional) Email notifications (order confirmation, shipping)
 
 **Admin Access:**
-- URL: http://localhost:4444/admin
+- Local: http://localhost:4444/admin
+- Production: https://seedandstar-production.up.railway.app/admin
 - Email: admin@seedandstar.com
 - Password: admin123
 
